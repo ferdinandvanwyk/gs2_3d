@@ -83,24 +83,24 @@ class Run(object):
 
         self.cdf_obj = Dataset(self.cdf_file, 'r')
 
-        self.drho_dpsi = ncfile.variables['drhodpsi'][0]
-        self.kx = np.array(ncfile.variables['kx'][:])
-        self.ky = np.array(ncfile.variables['ky'][:])
-        self.theta = np.array(ncfile.variables['theta'][:])
-        self.t = np.array(ncfile.variables['t'][:])
-        self.gradpar = np.array(ncfile.variables['gradpar'][:])
-        self.grho = np.array(ncfile.variables['grho'][:])
-        self.bmag = np.array(ncfile.variables['bmag'][:])
+        self.drho_dpsi = self.cdf_obj.variables['drhodpsi'][0]
+        self.kx = np.array(self.cdf_obj.variables['kx'][:])
+        self.ky = np.array(self.cdf_obj.variables['ky'][:])
+        self.theta = np.array(self.cdf_obj.variables['theta'][:])
+        self.t = np.array(self.cdf_obj.variables['t'][:])
+        self.gradpar = np.array(self.cdf_obj.variables['gradpar'][:])
+        self.grho = np.array(self.cdf_obj.variables['grho'][:])
+        self.bmag = np.array(self.cdf_obj.variables['bmag'][:])
         self.dtheta = np.append(np.diff(self.theta), 0)
-        self.r_0 = np.array(ncfile.variables['Rplot'][:])*self.amin
-        self.rprime = np.array(ncfile.variables['Rprime'][:])*self.amin
-        self.z_0 = np.array(ncfile.variables['Zplot'][:])*self.amin
-        self.zprime = np.array(ncfile.variables['Zprime'][:])*self.amin
-        self.alpha_0 = np.array(ncfile.variables['aplot'][:])
-        self.alpha_prime = np.array(ncfile.variables['aprime'][:])
+        self.r_0 = np.array(self.cdf_obj.variables['Rplot'][:])*self.amin
+        self.rprime = np.array(self.cdf_obj.variables['Rprime'][:])*self.amin
+        self.z_0 = np.array(self.cdf_obj.variables['Zplot'][:])*self.amin
+        self.zprime = np.array(self.cdf_obj.variables['Zprime'][:])*self.amin
+        self.alpha_0 = np.array(self.cdf_obj.variables['aplot'][:])
+        self.alpha_prime = np.array(self.cdf_obj.variables['aprime'][:])
 
         self.n0 = (int(np.around(self.ky[1] / self.drho_dpsi *
-                   (self.amin/self.rhoref))))
+                   (self.amin/self.rho_ref))))
         self.nt = len(self.t)
         self.nkx = len(self.kx)
         self.nky = len(self.ky)
@@ -184,7 +184,7 @@ class Run(object):
         if spec_idx == None:
             field = np.array(self.cdf_obj.variables[field_name][:,:,:,:])
         else:
-            field = np.array(cdf_obj.variables[field_name][spec_idx,:,:,:,:])
+            field = np.array(self.cdf_obj.variables[field_name][spec_idx,:,:,:,:])
 
         field = np.swapaxes(field, 0, 1)
         field = field[:,:,:,0] + 1j*field[:,:,:,1]
@@ -242,18 +242,18 @@ class Run(object):
         Read the GS2 input file extracted from the NetCDF file.
         """
 
-        self.g_exb = float(gs2_in['dist_fn_knobs']['g_exb'])
-        self.rhoc = float(gs2_in['theta_grid_parameters']['rhoc'])
-        self.qinp = float(gs2_in['theta_grid_parameters']['qinp'])
-        self.shat = float(gs2_in['theta_grid_parameters']['shat'])
-        self.jtwist = float(gs2_in['kt_grids_box_parameters']['jtwist'])
-        self.tprim_1 = float(gs2_in['species_parameters_1']['tprim'])
-        self.fprim_1 = float(gs2_in['species_parameters_1']['fprim'])
-        self.mass_1 = float(gs2_in['species_parameters_1']['mass'])
-        if gs2_in['species_knobs']['nspec'] == 2:
-            self.tprim_2 = float(gs2_in['species_parameters_2']['tprim'])
-            self.fprim_2 = float(gs2_in['species_parameters_2']['fprim'])
-            self.mass_2 = float(gs2_in['species_parameters_2']['mass'])
+        self.g_exb = float(self.gs2_in['dist_fn_knobs']['g_exb'])
+        self.rhoc = float(self.gs2_in['theta_grid_parameters']['rhoc'])
+        self.qinp = float(self.gs2_in['theta_grid_parameters']['qinp'])
+        self.shat = float(self.gs2_in['theta_grid_parameters']['shat'])
+        self.jtwist = float(self.gs2_in['kt_grids_box_parameters']['jtwist'])
+        self.tprim_1 = float(self.gs2_in['species_parameters_1']['tprim'])
+        self.fprim_1 = float(self.gs2_in['species_parameters_1']['fprim'])
+        self.mass_1 = float(self.gs2_in['species_parameters_1']['mass'])
+        if self.gs2_in['species_knobs']['nspec'] == 2:
+            self.tprim_2 = float(self.gs2_in['species_parameters_2']['tprim'])
+            self.fprim_2 = float(self.gs2_in['species_parameters_2']['fprim'])
+            self.mass_2 = float(self.gs2_in['species_parameters_2']['mass'])
 
     def correct_geometry(self):
         """
@@ -328,7 +328,11 @@ if __name__ == '__main__':
 
     run = Run(sys.argv[1])
 
-    fig = plt.figure()
-    ax = plt.add_suplot(111, projection='3d')
-    ax.scatter(run.X, run.Y, run.Z)
-    plt.show()
+    # fig = plt.figure()
+    # ax = fig.add_subplot(111, projection='3d')
+    # ax.scatter(run.X, run.Y, run.Z, s=10)
+    # plt.show()
+
+    np.savetxt('flux_tube.csv', np.transpose((run.X.flatten(), run.Y.flatten(), run.Z.flatten())), delimiter=',')
+
+
