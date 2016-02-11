@@ -1,0 +1,6 @@
+numpy
+scipy
+matplotlib
+NetCDF4
+f90nml
+PyEVTK
