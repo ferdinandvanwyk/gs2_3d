@@ -19,7 +19,6 @@ import sys
 import configparser
 
 import numpy as np
-import matplotlib as mpl
 from netCDF4 import Dataset
 import f90nml as nml
 
