@@ -1,4 +1,4 @@
-# gs2_3d_flux_tube plots 3D flux tubes and outputs the data in useful formats.
+# gs2_3d plots 3D flux tubes and outputs the data in useful formats.
 # Copyright (C) 2016  Ferdinand van Wyk
 #
 # This program is free software: you can redistribute it and/or modify
@@ -20,13 +20,8 @@ import configparser
 
 import numpy as np
 import matplotlib as mpl
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 from netCDF4 import Dataset
 import f90nml as nml
-# from pyevtk.hl import gridToVTK
-plt.rcParams.update({'figure.autolayout': True})
-mpl.rcParams['axes.unicode_minus'] = False
 
 class Run(object):
     """
@@ -49,6 +44,16 @@ class Run(object):
         self.calculate_cyl_coords()
         self.calculate_cart_coords()
 
+        if self.file_format == 'csv':
+            self.write_csv()
+        elif self.file_format == 'vtk':
+            self.write_vtk()
+        elif self.file_format == 'all':
+            self.write_csv()
+            self.write_vtk()
+        else:
+            raise ValueError('file_format must be one of [csv, vtk, all]')
+
     def read_config(self):
         """
         Read parameters from the config file.
@@ -58,6 +63,7 @@ class Run(object):
         config.read(self.config_file)
 
         self.cdf_file = str(config['io']['cdf_file'])
+        self.file_format = str(config['io']['file_format'])
         self.rho_tor = float(config['normalizations']['rho_tor'])
         self.amin = float(config['normalizations']['amin'])
         self.vth = float(config['normalizations']['vth'])
@@ -133,10 +139,11 @@ class Run(object):
         """
 
         self.ntot_i = self.read_field('ntot', 0)
-        self.ntot_e = self.read_field('ntot', 1)
-
         self.ntot_i = self.field_to_real_space(self.ntot_i)*self.rho_star
-        self.ntot_e = self.field_to_real_space(self.ntot_e)*self.rho_star
+
+        if self.nspec == 2:
+            self.ntot_e = self.read_field('ntot', 1)
+            self.ntot_e = self.field_to_real_space(self.ntot_e)*self.rho_star
 
     def read_upar(self):
         """
@@ -144,10 +151,11 @@ class Run(object):
         """
 
         self.upar_i = self.read_field('upar', 0)
-        self.upar_e = self.read_field('upar', 1)
-
         self.upar_i = self.field_to_real_space(self.upar_i)*self.rho_star
-        self.upar_e = self.field_to_real_space(self.upar_e)*self.rho_star
+
+        if self.nspec == 2:
+            self.upar_e = self.read_field('upar', 1)
+            self.upar_e = self.field_to_real_space(self.upar_e)*self.rho_star
 
     def read_tpar(self):
         """
@@ -155,10 +163,11 @@ class Run(object):
         """
 
         self.tpar_i = self.read_field('tpar', 0)
-        self.tpar_e = self.read_field('tpar', 1)
-
         self.tpar_i = self.field_to_real_space(self.tpar_i)*self.rho_star
-        self.tpar_e = self.field_to_real_space(self.tpar_e)*self.rho_star
+
+        if self.nspec == 2:
+            self.tpar_e = self.read_field('tpar', 1)
+            self.tpar_e = self.field_to_real_space(self.tpar_e)*self.rho_star
 
     def read_tperp(self):
         """
@@ -166,10 +175,11 @@ class Run(object):
         """
 
         self.tperp_i = self.read_field('tperp', 0)
-        self.tperp_e = self.read_field('tperp', 1)
-
         self.tperp_i = self.field_to_real_space(self.tperp_i)*self.rho_star
-        self.tperp_e = self.field_to_real_space(self.tperp_e)*self.rho_star
+
+        if self.nspec == 2:
+            self.tperp_e = self.read_field('tperp', 1)
+            self.tperp_e = self.field_to_real_space(self.tperp_e)*self.rho_star
 
     def read_field(self, field_name, spec_idx):
         """
@@ -247,10 +257,11 @@ class Run(object):
         self.qinp = float(self.gs2_in['theta_grid_parameters']['qinp'])
         self.shat = float(self.gs2_in['theta_grid_parameters']['shat'])
         self.jtwist = float(self.gs2_in['kt_grids_box_parameters']['jtwist'])
+        self.nspec = int(self.gs2_in['species_knobs']['nspec'])
         self.tprim_1 = float(self.gs2_in['species_parameters_1']['tprim'])
         self.fprim_1 = float(self.gs2_in['species_parameters_1']['fprim'])
         self.mass_1 = float(self.gs2_in['species_parameters_1']['mass'])
-        if self.gs2_in['species_knobs']['nspec'] == 2:
+        if self.nspec == 2:
             self.tprim_2 = float(self.gs2_in['species_parameters_2']['tprim'])
             self.fprim_2 = float(self.gs2_in['species_parameters_2']['fprim'])
             self.mass_2 = float(self.gs2_in['species_parameters_2']['mass'])
@@ -280,7 +291,7 @@ class Run(object):
                            (2*np.pi)))
         self.delta_rho = ((self.rho_tor/self.q_rational) *
                          (self.jtwist/(self.n0*self.shat)))
-        self.q_prime_corrected = self.jtwist / (self.n0 * self.delta_rho)
+        self.q_prime_corrected = self.jtwist / (self.n0*self.delta_rho)
         self.alpha_prime_corrected = (self.alpha_prime + (self.q_prime -
                                         self.q_prime_corrected)*self.theta)
 
@@ -324,15 +335,109 @@ class Run(object):
         self.X = self.R * np.cos(self.phi_tor)
         self.Y = self.R * np.sin(self.phi_tor)
 
+    def write_csv(self):
+        """
+        Writes the fields to CSV files.
+        """
+
+        if 'gs2_3d' not in os.listdir(self.run_dir):
+            os.system('mkdir -p ' + self.run_dir + 'gs2_3d')
+
+        for name, field in [('phi', self.phi),
+                            ('ntot_i', self.ntot_i),
+                            ('upar_i', self.upar_i),
+                            ('tpar_i', self.tpar_i),
+                            ('tperp_i', self.tperp_i)]:
+
+            np.savetxt(self.run_dir + 'gs2_3d/' + name + '.csv',
+                       np.transpose((self.X.flatten(), self.Y.flatten(),
+                                     self.Z.flatten(), field.flatten())),
+                       delimiter=',',
+                       header='X, Y, Z, ' + name,
+                       fmt='%f')
+
+        if self.nspec == 2:
+            for name, field in [('ntot_e', self.ntot_e),
+                                ('upar_e', self.upar_e),
+                                ('tpar_e', self.tpar_e),
+                                ('tperp_e', self.tperp_e)]:
+
+                np.savetxt(self.run_dir + 'gs2_3d/' + name + '.csv',
+                           np.transpose((self.X.flatten(), self.Y.flatten(),
+                                         self.Z.flatten(), field.flatten())),
+                           delimiter=',',
+                           header='X, Y, Z, ' + name,
+                           fmt='%f')
+
+    def write_vtk(self):
+        """
+        Write fields to VTK files.
+        """
+
+        for name, field in [('phi', self.phi),
+                            ('ntot_i', self.ntot_i),
+                            ('upar_i', self.upar_i),
+                            ('tpar_i', self.tpar_i),
+                            ('tperp_i', self.tperp_i)]:
+
+            fp = open(self.run_dir + 'gs2_3d/' + name + '.vtk', 'w')
+
+            fp.write("# vtk DataFile Version 3.0\n")
+            fp.write("Cartesian coordinates of {}\n".format(name))
+            fp.write("ASCII\n")
+            fp.write("DATASET STRUCTURED_GRID\n")
+            fp.write("DIMENSIONS {:d} {:d} {:d}\n".format(self.nx, self.ny,
+                                                          self.nth))
+            fp.write("POINTS {} float\n".format(self.nx*self.ny*self.nth))
+            for k in range(self.nth):
+                for j in range(self.ny):
+                    for i in range(self.nx):
+                        fp.write("{:f} {:f} {:f}\n".format(self.X[i,j,k],
+                                                           self.Y[i,j,k],
+                                                           self.Z[i,j,k]))
+
+            fp.write("POINT_DATA {}\n".format(self.nx*self.ny*self.nth))
+            fp.write("SCALARS {} float 1\n".format(name))
+            fp.write("LOOKUP_TABLE default\n")
+            for i in range(self.nx):
+                for j in range(self.ny):
+                    for k in range(self.nth):
+                        fp.write("{:f}\n".format(field[i,j,k]))
+
+            fp.close()
+
+        if self.nspec == 2:
+            for name, field in [('ntot_e', self.ntot_e),
+                                ('upar_e', self.upar_e),
+                                ('tpar_e', self.tpar_e),
+                                ('tperp_e', self.tperp_e)]:
+
+                fp = open(self.run_dir + 'gs2_3d/' + name + '.vtk', 'w')
+
+                fp.write("# vtk DataFile Version 3.0\n")
+                fp.write("Cartesian coordinates of {}\n".format(name))
+                fp.write("ASCII\n")
+                fp.write("DATASET UNSTRUCTURED_GRID\n")
+                fp.write("POINTS {} float\n".format(self.nx*self.ny*self.nth))
+                for i in range(self.nx):
+                    for j in range(self.ny):
+                        for k in range(self.nth):
+                            fp.write("{:f} {:f} {:f}\n".format(self.X[i,j,k],
+                                                               self.Y[i,j,k],
+                                                               self.Z[i,j,k]))
+
+                fp.write("POINT_DATA {}\n".format(self.nx*self.ny*self.nth))
+                fp.write("SCALARS {} float 1\n".format(name))
+                fp.write("LOOKUP_TABLE default\n")
+                for i in range(self.nx):
+                    for j in range(self.ny):
+                        for k in range(self.nth):
+                            fp.write("{:f}\n".format(field[i,j,k]))
+
+                fp.close()
+
+
 if __name__ == '__main__':
 
     run = Run(sys.argv[1])
-
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-    # ax.scatter(run.X, run.Y, run.Z, s=10)
-    # plt.show()
-
-    np.savetxt('flux_tube.csv', np.transpose((run.X.flatten(), run.Y.flatten(), run.Z.flatten())), delimiter=',')
-
 
