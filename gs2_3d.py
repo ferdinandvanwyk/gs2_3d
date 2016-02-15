@@ -39,6 +39,14 @@ class Run(object):
         self.extract_input_file()
         self.read_input_file()
         self.read_netcdf()
+
+        if self.x_interp_fac > 1:
+            self.interpolate_x()
+        if self.y_interp_fac > 1:
+            self.interpolate_y()
+        if self.theta_interp_fac > 1:
+            self.interpolate_theta()
+
         self.calculate_gs2_coords()
         self.calculate_cyl_coords()
         self.calculate_cart_coords()
@@ -64,6 +72,9 @@ class Run(object):
         self.field_name = str(config['io']['field_name'])
         self.cdf_file = str(config['io']['cdf_file'])
         self.file_format = str(config['io']['file_format'])
+        self.x_interp_fac = int(config['io']['x_interp_fac'])
+        self.y_interp_fac = int(config['io']['y_interp_fac'])
+        self.theta_interp_fac = int(config['io']['theta_interp_fac'])
         self.rho_tor = float(config['normalizations']['rho_tor'])
         self.amin = float(config['normalizations']['amin'])
         self.vth = float(config['normalizations']['vth'])
@@ -94,14 +105,10 @@ class Run(object):
         self.ky = np.array(self.cdf_obj.variables['ky'][:])
         self.theta = np.array(self.cdf_obj.variables['theta'][:])
         self.t = np.array(self.cdf_obj.variables['t'][:])
-        self.gradpar = np.array(self.cdf_obj.variables['gradpar'][:])
-        self.grho = np.array(self.cdf_obj.variables['grho'][:])
-        self.bmag = np.array(self.cdf_obj.variables['bmag'][:])
-        self.dtheta = np.append(np.diff(self.theta), 0)
         self.r_0 = np.array(self.cdf_obj.variables['Rplot'][:])*self.amin
-        self.rprime = np.array(self.cdf_obj.variables['Rprime'][:])*self.amin
+        self.r_prime = np.array(self.cdf_obj.variables['Rprime'][:])*self.amin
         self.z_0 = np.array(self.cdf_obj.variables['Zplot'][:])*self.amin
-        self.zprime = np.array(self.cdf_obj.variables['Zprime'][:])*self.amin
+        self.z_prime = np.array(self.cdf_obj.variables['Zprime'][:])*self.amin
         self.alpha_0 = np.array(self.cdf_obj.variables['aplot'][:])
         self.alpha_prime = np.array(self.cdf_obj.variables['aprime'][:])
 
@@ -240,6 +247,86 @@ class Run(object):
         self.alpha_prime_corrected = (self.alpha_prime + (self.q_prime -
                                         self.q_prime_corrected)*self.theta)
 
+    def interpolate_x(self):
+        """
+        Interpolate grids and fields in x.
+        """
+
+        x_tmp = np.linspace(0, 1, self.nx)
+        x_tmp_new = np.linspace(0, 1, self.x_interp_fac*self.nx)
+        field_new = np.empty([self.x_interp_fac*self.nx, self.ny, self.nth],
+                             dtype=float)
+
+        for i in range(self.ny):
+            for j in range(self.nth):
+                field_new[:,i,j] = np.interp(x_tmp_new, x_tmp,
+                                             self.field[:,i,j])
+
+        self.nx = self.x_interp_fac * self.nx
+        self.field = field_new.copy()
+
+    def interpolate_y(self):
+        """
+        Interpolate grids and fields in y.
+        """
+
+        y_tmp = np.linspace(0, 1, self.ny)
+        y_tmp_new = np.linspace(0, 1, self.y_interp_fac*self.ny)
+        field_new = np.empty([self.nx, self.y_interp_fac*self.ny, self.nth],
+                             dtype=float)
+
+        for i in range(self.nx):
+            for j in range(self.nth):
+                field_new[i,:,j] = np.interp(y_tmp_new, y_tmp,
+                                             self.field[i,:,j])
+
+        self.ny = self.y_interp_fac * self.ny
+        self.field = field_new.copy()
+
+    def interpolate_theta(self):
+        """
+        Interpolate grids and fields in theta. Importantly, interpolate
+        geometric parameters as well.
+        """
+
+        theta_new = np.linspace(min(self.theta), max(self.theta),
+                                self.theta_interp_fac*self.nth)
+
+        field_new = np.empty([self.nx, self.ny, self.theta_interp_fac*self.nth],
+                             dtype=float)
+        r_0_new = np.empty([self.theta_interp_fac*self.nth], dtype=float)
+        r_prime_new = np.empty([self.theta_interp_fac*self.nth], dtype=float)
+        z_0_new = np.empty([self.theta_interp_fac*self.nth], dtype=float)
+        z_prime_new = np.empty([self.theta_interp_fac*self.nth], dtype=float)
+        alpha_0_corrected_new = np.empty([self.theta_interp_fac*self.nth],
+                                         dtype=float)
+        alpha_prime_corrected_new = np.empty([self.theta_interp_fac*self.nth],
+                                             dtype=float)
+
+        for i in range(self.nx):
+            for j in range(self.ny):
+                field_new[i,j,:] = np.interp(theta_new, self.theta,
+                                             self.field[i,j,:])
+
+        r_0_new = np.interp(theta_new, self.theta, self.r_0)
+        r_prime_new = np.interp(theta_new, self.theta, self.r_prime)
+        z_0_new = np.interp(theta_new, self.theta, self.z_0)
+        z_prime_new = np.interp(theta_new, self.theta, self.z_prime)
+        alpha_0_corrected_new = np.interp(theta_new, self.theta,
+                                          self.alpha_0_corrected)
+        alpha_prime_corrected_new = np.interp(theta_new, self.theta,
+                                              self.alpha_prime_corrected)
+
+
+        self.nth = self.theta_interp_fac * self.nth
+        self.field = field_new.copy()
+        self.r_0 = r_0_new.copy()
+        self.r_prime = r_prime_new.copy()
+        self.z_0 = z_0_new.copy()
+        self.z_prime = z_prime_new.copy()
+        self.alpha_0_corrected = alpha_0_corrected_new.copy()
+        self.alpha_prime_corrected = alpha_prime_corrected_new.copy()
+
     def calculate_gs2_coords(self):
         """
         Calculate the real space (x, y) GS2 grids.
@@ -264,8 +351,8 @@ class Run(object):
         for i in range(self.nx):
             for j in range(self.ny):
                 for k in range(self.nth):
-                    self.R[i,j,k] = self.r_0[k] + self.rho_n[i]*self.rprime[k]
-                    self.Z[i,j,k] = self.z_0[k] + self.rho_n[i]*self.zprime[k]
+                    self.R[i,j,k] = self.r_0[k] + self.rho_n[i]*self.r_prime[k]
+                    self.Z[i,j,k] = self.z_0[k] + self.rho_n[i]*self.z_prime[k]
                     self.phi_tor[i,j,k] = (self.alpha[j] -
                                            self.alpha_0_corrected[k] -
                                            self.rho_n[i]*
