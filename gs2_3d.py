@@ -112,8 +112,9 @@ class Run(object):
         self.alpha_0 = np.array(self.cdf_obj.variables['aplot'][:])
         self.alpha_prime = np.array(self.cdf_obj.variables['aprime'][:])
 
-        self.n0 = (int(np.around(self.ky[1] / self.drho_dpsi *
-                   (self.amin/self.rho_ref))))
+        self.n0 = self.ky[1] / self.drho_dpsi * (self.amin/self.rho_ref)
+        self.n0_int = (int(np.around(self.ky[1] / self.drho_dpsi *
+                          (self.amin/self.rho_ref))))
         self.nt = len(self.t)
         self.nkx = len(self.kx)
         self.nky = len(self.ky)
@@ -228,22 +229,21 @@ class Run(object):
         """
 
         # Calculate rho_star using integer n0:
-        self.rho_star = self.ky[1] / self.n0 / self.drho_dpsi
+        self.rho_star = self.ky[1] / self.n0_int / self.drho_dpsi
 
         # Set q to closest rational q
-        self.m_mode = int(np.around(self.qinp*self.n0))
-        self.q_rational = float(self.m_mode)/float(self.n0)
+        self.m_mode = int(np.around(self.qinp*self.n0_int))
+        self.q_rational = float(self.m_mode)/float(self.n0_int)
 
         # Correct alpha read in from geometry
         self.alpha_0_corrected = (self.alpha_0 + (self.qinp - self.q_rational)*
                                                 self.theta)
 
         # Correct alpha_prime
-        self.q_prime = (abs((self.alpha_prime[0] - self.alpha_prime[-1]) /
-                           (2*np.pi)))
         self.delta_rho = ((self.rho_tor/self.q_rational) *
-                         (self.jtwist/(self.n0*self.shat)))
-        self.q_prime_corrected = self.jtwist / (self.n0*self.delta_rho)
+                         (self.jtwist/(self.n0_int*self.shat)))
+        self.q_prime = self.jtwist / (self.n0*self.delta_rho)
+        self.q_prime_corrected = self.jtwist / (self.n0_int*self.delta_rho)
         self.alpha_prime_corrected = (self.alpha_prime + (self.q_prime -
                                         self.q_prime_corrected)*self.theta)
 
