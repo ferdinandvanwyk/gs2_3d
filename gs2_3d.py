@@ -75,6 +75,7 @@ class Run(object):
         self.x_interp_fac = int(config['io']['x_interp_fac'])
         self.y_interp_fac = int(config['io']['y_interp_fac'])
         self.theta_interp_fac = int(config['io']['theta_interp_fac'])
+        self.full_torus = bool(config['io']['full_torus'])
         self.rho_tor = float(config['normalizations']['rho_tor'])
         self.amin = float(config['normalizations']['amin'])
         self.vth = float(config['normalizations']['vth'])
@@ -347,6 +348,16 @@ class Run(object):
         self.rho_n = (self.x * self.rhoc / self.q_rational * self.drho_dpsi *
                       self.rho_star)
         self.alpha = self.y * self.drho_dpsi * self.rho_star
+
+        if self.full_torus:
+            ny_extend = self.n0_int * self.ny
+
+            offset = np.repeat(np.arange(self.n0_int), self.ny)
+            offset = offset * (2*np.pi/self.n0_int)
+
+            self.alpha = (np.tile(self.alpha, self.n0_int) + offset).copy()
+            self.ny = ny_extend
+            self.field = np.tile(self.field, (1,self.n0_int,1))
 
         self.R = np.empty([self.nx, self.ny, self.nth], dtype=float)
         self.Z = np.empty([self.nx, self.ny, self.nth], dtype=float)
