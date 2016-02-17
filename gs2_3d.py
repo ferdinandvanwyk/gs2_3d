@@ -240,10 +240,13 @@ class Run(object):
                                                 self.theta)
 
         # Correct alpha_prime
-        self.delta_rho = ((self.rho_tor/self.q_rational) *
-                         (self.jtwist/(self.n0_int*self.shat)))
+        self.delta_rho = ((self.rho_tor/self.qinp) *
+                         (self.jtwist/(self.n0*self.shat)))
         self.q_prime = self.jtwist / (self.n0*self.delta_rho)
-        self.q_prime_corrected = self.jtwist / (self.n0_int*self.delta_rho)
+        self.delta_rho_corrected= ((self.rho_tor/self.q_rational) *
+                         (self.jtwist/(self.n0_int*self.shat)))
+        self.q_prime_corrected = (self.jtwist /
+                                    (self.n0_int*self.delta_rho_corrected))
         self.alpha_prime_corrected = (self.alpha_prime + (self.q_prime -
                                         self.q_prime_corrected)*self.theta)
 
