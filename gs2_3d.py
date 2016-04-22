@@ -75,7 +75,7 @@ class Run(object):
         self.x_interp_fac = int(config['io']['x_interp_fac'])
         self.y_interp_fac = int(config['io']['y_interp_fac'])
         self.theta_interp_fac = int(config['io']['theta_interp_fac'])
-        self.full_torus = bool(config['io']['full_torus'])
+        self.full_torus = config.getboolean('io', 'full_torus')
         self.rho_tor = float(config['normalizations']['rho_tor'])
         self.amin = float(config['normalizations']['amin'])
         self.vth = float(config['normalizations']['vth'])
